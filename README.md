@@ -1,4 +1,4 @@
-# Meme Bot Flip
+# BigBoyFlippa
 
 An autonomous trading bot for Solana meme coins that executes trades based on market signals and risk parameters.
 
