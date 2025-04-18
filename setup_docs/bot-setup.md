@@ -26,7 +26,7 @@ npm install
 3. Configure `.env` file:
 ```bash
 # Edit .env with your values
-nano .env
+vim .env
 ```
 
 Required environment variables:
