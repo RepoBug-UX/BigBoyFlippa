@@ -98,7 +98,3 @@ Key configuration parameters in `.env`:
 ## Disclaimer
 
 This bot is provided as-is with no guarantees. Use at your own risk. Always test with small amounts first and never risk more than you can afford to lose.
-
-## License
-
-MIT 
