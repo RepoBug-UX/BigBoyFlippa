@@ -15,8 +15,8 @@ class TradeExecutor {
     constructor() {
         this.activeTrades = new Map();
         this.maxConcurrentTrades = config.get('MAX_CONCURRENT_TRADES', 3);
-        this.minLiquidity = config.get('MIN_LIQUIDITY', 100); // SOL
-        this.maxSlippage = config.get('MAX_SLIPPAGE', 0.05); // 5%
+        this.minLiquidity = config.get('MIN_LIQUIDITY', 5); // Reduced from 10 SOL
+        this.maxSlippage = config.get('MAX_SLIPPAGE', 0.02); // 2% slippage
         this.maxHoldTime = config.get('MAX_HOLD_TIME_MS', 300000); // 5 minutes
         this.lastTradeTime = new Map();
         this.monitoringInterval = setInterval(() => this._monitorTrades(), 10000); // Check every 10 seconds
@@ -77,7 +77,7 @@ class TradeExecutor {
                 throw new Error(`Trade validation failed: ${riskValidation.reasons.join(', ')}`);
             }
 
-            // Get detailed market analysis
+            // Get market analysis
             const marketAnalysis = await marketAnalyzer.getMarketCondition(tokenMint);
             const technicalIndicators = await marketAnalyzer.getTechnicalIndicators(tokenMint);
 
@@ -268,33 +268,23 @@ class TradeExecutor {
             const userPublicKey = walletManager.getPublicKey();
             const signTransaction = walletManager.signTransaction.bind(walletManager);
 
-            // Convert SOL to lamports
-            const amountLamports = Math.floor(amount * 1e9);
-
-            // Execute swap
+            // Execute swap using Jupiter REST API
             const swapResult = await jupiterService.executeSwap({
                 inputMint: type === 'buy' ? 'So11111111111111111111111111111111111111112' : tokenMint,
                 outputMint: type === 'buy' ? tokenMint : 'So11111111111111111111111111111111111111112',
-                amount: amountLamports,
-                slippage: slippage * 100, // Convert to basis points
-                userPublicKey,
-                signTransaction
+                amount,
+                slippage: slippage * 100 // Convert to basis points
             });
 
             if (!swapResult.success) {
                 throw new Error('Swap execution failed');
             }
 
-            // Convert back to SOL
-            const amountOut = swapResult.amountOut / 1e9;
-            const price = type === 'buy' ? amount / amountOut : amountOut / amount;
-
             return {
-                price,
-                amount: amountOut,
+                price: swapResult.price,
+                amount: swapResult.amountOut,
                 txId: swapResult.txId
             };
-
         } catch (error) {
             logger.error('Order execution failed:', error.message);
             throw error;

@@ -1,59 +1,71 @@
-const fs = require('fs');
+const winston = require('winston');
 const path = require('path');
 const config = require('../config');
 
 class Logger {
     constructor() {
-        this.logDir = path.join(config.get('DATA_DIR'), 'logs');
-        this.logFile = path.join(this.logDir, 'app.log');
-        this.ensureLogDirectory();
+        const logsDir = path.join(config.get('DATA_DIR', './data'), 'logs');
+        
+        this.logger = winston.createLogger({
+            level: 'info',
+            format: winston.format.combine(
+                winston.format.timestamp(),
+                winston.format.json()
+            ),
+            transports: [
+                new winston.transports.Console({
+                    format: winston.format.combine(
+                        winston.format.colorize(),
+                        winston.format.timestamp(),
+                        winston.format.printf(({ timestamp, level, message }) => {
+                            return `[${timestamp}] ${level}: ${message}`;
+                        })
+                    )
+                }),
+                new winston.transports.File({
+                    filename: path.join(logsDir, 'error.log'),
+                    level: 'error'
+                }),
+                new winston.transports.File({
+                    filename: path.join(logsDir, 'combined.log')
+                })
+            ]
+        });
     }
 
-    ensureLogDirectory() {
-        if (!fs.existsSync(this.logDir)) {
-            fs.mkdirSync(this.logDir, { recursive: true });
+    info(message) {
+        this.logger.info(`ℹ️ ${message}`);
+    }
+
+    error(message, error) {
+        if (error) {
+            this.logger.error(`❌ ${message}:`, error);
+        } else {
+            this.logger.error(`❌ ${message}`);
         }
     }
 
-    formatMessage(level, message, data = {}) {
-        const timestamp = new Date().toISOString();
-        const dataString = Object.keys(data).length ? JSON.stringify(data) : '';
-        return `[${timestamp}] ${level.toUpperCase()}: ${message} ${dataString}\n`;
+    warning(message) {
+        this.logger.warn(`⚠️ ${message}`);
     }
 
-    writeToFile(message) {
-        fs.appendFileSync(this.logFile, message);
+    warn(message) {
+        this.warning(message);
     }
 
-    log(level, message, data = {}) {
-        const formattedMessage = this.formatMessage(level, message, data);
-        console.log(formattedMessage);
-        this.writeToFile(formattedMessage);
+    debug(message) {
+        this.logger.debug(`🔍 ${message}`);
     }
 
-    info(message, data = {}) {
-        this.log('info', `ℹ️ ${message}`, data);
-    }
-
-    error(message, data = {}) {
-        this.log('error', `❌ ${message}`, data);
-    }
-
-    warn(message, data = {}) {
-        this.log('warn', `⚠️ ${message}`, data);
-    }
-
-    debug(message, data = {}) {
-        if (process.env.DEBUG) {
-            this.log('debug', `🔍 ${message}`, data);
-        }
+    success(message) {
+        this.logger.info(`✅ ${message}`);
     }
 
     trade(data) {
         const { tokenSymbol, strategy, solIn, solOut, pnl, pnlPercent } = data;
         const emoji = pnl >= 0 ? '📈' : '📉';
         const message = `${emoji} Trade: ${tokenSymbol} using ${strategy} | In: ${solIn} SOL | Out: ${solOut} SOL | PnL: ${pnl.toFixed(4)} SOL (${pnlPercent.toFixed(2)}%)`;
-        this.log('trade', message, data);
+        this.logger.info(message, data);
     }
 
     alert(type, message, data = {}) {
@@ -64,15 +76,15 @@ class Logger {
             balance: '💳'
         };
         const emoji = emojis[type] || 'ℹ️';
-        this.log('alert', `${emoji} ${message}`, data);
+        this.logger.info(`${emoji} ${message}`, data);
     }
 
     performance(message, data = {}) {
-        this.log('performance', `📊 ${message}`, data);
+        this.logger.info(`📊 ${message}`, data);
     }
 
     system(message, data = {}) {
-        this.log('system', `🔧 ${message}`, data);
+        this.logger.info(`🔧 ${message}`, data);
     }
 }
 

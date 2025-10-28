@@ -96,8 +96,8 @@ class SmartFilter {
         let score = 0;
         const weights = {
             ownership: 0.4,
-            liquidity: 0.3,
-            volume: 0.2,
+            liquidity: 0.2,
+            volume: 0.3,
             age: 0.1
         };
 
@@ -105,14 +105,14 @@ class SmartFilter {
         score += ownershipStatus.isRenounced ? weights.ownership : 0;
 
         // Liquidity score (normalized between 0 and 1)
-        const minLiquidity = 1000; // SOL
+        const minLiquidity = 10;
         const liquidityScore = Math.min(tokenData.liquidity / minLiquidity, 1);
         score += liquidityScore * weights.liquidity;
 
         // Volume consistency score
         if (historicalMetrics) {
             const volumeScores = historicalMetrics.map(m => {
-                const volumeScore = Math.min(m.volume24h / (minLiquidity * 0.1), 1);
+                const volumeScore = Math.min(m.volume24h / (minLiquidity * 0.5), 1);
                 return volumeScore;
             });
             const avgVolumeScore = volumeScores.reduce((a, b) => a + b, 0) / volumeScores.length;

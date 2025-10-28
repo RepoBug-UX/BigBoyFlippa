@@ -1,4 +1,4 @@
-const { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL } = require('@solana/web3.js');
+const { Keypair, Connection, PublicKey, LAMPORTS_PER_SOL, VersionedTransaction } = require('@solana/web3.js');
 const config = require('../../core/config');
 const logger = require('../../core/utils/logger');
 const fs = require('fs');
@@ -13,24 +13,48 @@ class WalletManager {
 
     async initialize(privateKey) {
         try {
+            logger.info('Starting wallet initialization');
+            
             // Initialize keypair
+            logger.info(`Initializing keypair with key of length: ${privateKey.length}`);
             this.keypair = Keypair.fromSecretKey(
-                Buffer.from(privateKey, 'base64')
+                privateKey instanceof Buffer ? privateKey : Buffer.from(privateKey)
             );
+            logger.info('Keypair created successfully');
+            logger.info(`Public key: ${this.keypair.publicKey.toString()}`);
 
             // Initialize connection
             const rpcEndpoint = config.get('SOLANA_RPC_ENDPOINT');
             if (!rpcEndpoint) {
                 throw new Error('SOLANA_RPC_ENDPOINT is required');
             }
-            this.connection = new Connection(rpcEndpoint, 'confirmed');
+            logger.info(`Connecting to RPC endpoint: ${rpcEndpoint}`);
+            
+            this.connection = new Connection(rpcEndpoint, {
+                commitment: 'confirmed',
+                confirmTransactionInitialTimeout: 60000
+            });
+            logger.info('RPC connection established');
 
-            // Verify connection and balance
-            await this.getBalance();
+            // Mark as initialized before balance check
             this.initialized = true;
-            logger.info('Wallet initialized successfully');
+
+            // Try to get balance but don't fail initialization if it fails
+            try {
+                const balance = await this.getBalance();
+                logger.info(`Initial wallet balance: ${balance} SOL`);
+            } catch (balanceError) {
+                logger.warning(`Could not fetch initial balance: ${balanceError.message}`);
+            }
+            
+            logger.info('Wallet initialization complete');
+            return true;
         } catch (error) {
             logger.error('Failed to initialize wallet:', error.message);
+            if (error.stack) {
+                logger.error('Stack trace:', error.stack);
+            }
+            this.initialized = false;
             throw error;
         }
     }
@@ -60,7 +84,13 @@ class WalletManager {
         if (!this.initialized) {
             throw new Error('Wallet not initialized');
         }
-        return transaction.sign([this.keypair]);
+
+        if (transaction instanceof VersionedTransaction) {
+            transaction.sign([this.keypair]);
+            return transaction;
+        } else {
+            return transaction.sign([this.keypair]);
+        }
     }
 
     async sendTransaction(transaction) {
@@ -70,8 +100,26 @@ class WalletManager {
 
         try {
             const signedTx = this.signTransaction(transaction);
-            const signature = await this.connection.sendRawTransaction(signedTx.serialize());
-            await this.connection.confirmTransaction(signature);
+            
+            logger.info('Sending transaction...');
+            const signature = await this.connection.sendTransaction(signedTx, {
+                skipPreflight: false,
+                preflightCommitment: 'confirmed',
+                maxRetries: 3
+            });
+            
+            logger.info(`Transaction sent with signature: ${signature}`);
+            
+            const confirmation = await this.connection.confirmTransaction(signature, {
+                commitment: 'confirmed',
+                confirmTransactionInitialTimeout: 60000
+            });
+            
+            if (confirmation.value.err) {
+                throw new Error(`Transaction failed: ${confirmation.value.err}`);
+            }
+            
+            logger.info('Transaction confirmed successfully');
             return signature;
         } catch (error) {
             logger.error('Failed to send transaction:', error.message);
@@ -134,7 +182,8 @@ class WalletManager {
     async getTransactionDetails(signature) {
         try {
             const transaction = await this.connection.getTransaction(signature, {
-                maxSupportedTransactionVersion: 0
+                maxSupportedTransactionVersion: 0,
+                commitment: 'confirmed'
             });
             return transaction;
         } catch (error) {
@@ -146,10 +195,20 @@ class WalletManager {
     /**
      * Checks if wallet has sufficient balance
      * @param {number} amount - Amount in SOL
-     * @returns {boolean} True if sufficient balance
+     * @returns {Promise<boolean>} True if sufficient balance
      */
-    hasSufficientBalance(amount) {
-        return this.getBalance() >= amount;
+    async hasSufficientBalance(amount) {
+        try {
+            const balance = await this.getBalance();
+            const hasBalance = balance >= amount;
+            if (!hasBalance) {
+                logger.warning(`Insufficient balance. Required: ${amount} SOL, Available: ${balance} SOL`);
+            }
+            return hasBalance;
+        } catch (error) {
+            logger.error('Failed to check balance:', error.message);
+            return false;
+        }
     }
 
     /**
@@ -159,8 +218,13 @@ class WalletManager {
      */
     async estimateFee(transaction) {
         try {
-            const fee = await this.connection.getFeeForMessage(transaction.compileMessage());
-            return fee / LAMPORTS_PER_SOL;
+            if (transaction instanceof VersionedTransaction) {
+                const simulation = await this.connection.simulateTransaction(transaction);
+                return simulation.value.unitsConsumed * 0.000001; // Convert to SOL
+            } else {
+                const fee = await this.connection.getFeeForMessage(transaction.compileMessage());
+                return fee / LAMPORTS_PER_SOL;
+            }
         } catch (error) {
             logger.error('Failed to estimate fee:', error.message);
             throw error;

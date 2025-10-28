@@ -179,6 +179,83 @@ const TRADING_TYPES = {
     }
 };
 
+const Token = {
+    mint: 'string',
+    symbol: 'string',
+    price: 'number',
+    liquidity: 'number',
+    volume24h: 'number',
+    createdAt: 'date'
+};
+
+const Trade = {
+    tokenMint: 'string',
+    tokenSymbol: 'string',
+    strategy: 'string',
+    entryPrice: 'number',
+    exitPrice: 'number',
+    solIn: 'number',
+    solOut: 'number',
+    pnl: 'number',
+    pnlPercent: 'number',
+    buyTx: 'string',
+    sellTx: 'string',
+    entryReason: 'string',
+    exitReason: 'string',
+    marketCondition: 'string'
+};
+
+const Strategy = {
+    name: 'string',
+    description: 'string',
+    parameters: 'object',
+    'parameters.minLiquidity': 'number',
+    'parameters.minVolume': 'number',
+    'parameters.maxSlippage': 'number',
+    'parameters.takeProfit': 'number',
+    'parameters.stopLoss': 'number'
+};
+
+const TokenMetrics = {
+    mint: 'string',
+    symbol: 'string',
+    totalTrades: 'number',
+    winningTrades: 'number',
+    totalPnL: 'number',
+    avgPnL: 'number',
+    bestTrade: 'number',
+    worstTrade: 'number',
+    lastTrade: 'date'
+};
+
+const StrategyMetrics = {
+    strategy: 'string',
+    totalTrades: 'number',
+    winningTrades: 'number',
+    totalPnL: 'number',
+    avgPnL: 'number',
+    bestTrade: 'number',
+    worstTrade: 'number'
+};
+
+const MarketCondition = {
+    trend: 'string',
+    strength: 'number',
+    volatility: 'number',
+    sentiment: 'string'
+};
+
+const TradeSignal = {
+    tokenMint: 'string',
+    tokenSymbol: 'string',
+    action: 'string',
+    price: 'number',
+    amount: 'number',
+    reason: 'string',
+    metrics: 'object',
+    marketCondition: 'object'
+};
+
 module.exports = {
     Token,
     Trade,

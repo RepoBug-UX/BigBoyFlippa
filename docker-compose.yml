@@ -1,0 +1,23 @@
+version: '3'
+services:
+  bot:
+    build: .
+    container_name: meme-bot-flip
+    volumes:
+      # Mount data directories for persistence
+      - ./src/data:/usr/src/app/src/data:rw
+      # Mount .env file read-only
+      - ./.env:/usr/src/app/.env:ro
+    restart: unless-stopped
+    # Resource limits
+    deploy:
+      resources:
+        limits:
+          cpus: '1'
+          memory: 1G
+    # Health check
+    healthcheck:
+      test: ["CMD", "node", "src/scripts/healthcheck.js"]
+      interval: 30s
+      timeout: 10s
+      retries: 3 

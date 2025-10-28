@@ -50,6 +50,15 @@ class ConfigManager {
                 ...dotenv.config({ path: telegramEnvPath }).parsed
             };
         }
+
+        // Interpolate environment variables in values
+        Object.keys(this.env).forEach(key => {
+            if (typeof this.env[key] === 'string') {
+                this.env[key] = this.env[key].replace(/\${([^}]+)}/g, (_, varName) => {
+                    return this.env[varName] || '';
+                });
+            }
+        });
     }
 
     get(key) {

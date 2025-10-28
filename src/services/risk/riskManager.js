@@ -1,180 +1,98 @@
 const config = require('../../core/config');
 const logger = require('../../core/utils/logger');
-const marketAnalyzer = require('../market/marketAnalyzer');
 const walletManager = require('../wallet/walletManager');
 
 class RiskManager {
     constructor() {
-        this.maxPositionSize = config.get('MAX_POSITION_SIZE', 0.1); // 10% of portfolio
-        this.maxDailyLoss = config.get('MAX_DAILY_LOSS', 0.05); // 5% of portfolio
-        this.maxLossPercent = config.get('MAX_LOSS_PERCENT', 0.01); // 1%
-        this.minProfitPercent = config.get('MIN_PROFIT_PERCENT', 0.015); // 1.5%
-        this.maxOpenTrades = config.get('MAX_CONCURRENT_TRADES', 3);
-        this.dailyPnL = 0;
-        this.positions = new Map();
+        this.maxPositionSize = config.get('MAX_POSITION_SIZE', 1.0); // 1 SOL
+        this.maxRiskPerTrade = config.get('MAX_RISK_PER_TRADE', 0.1); // 10%
+        this.maxDailyLoss = config.get('MAX_DAILY_LOSS', 0.2); // 20%
+        this.activeTrades = new Map();
+        this.dailyStats = {
+            totalTrades: 0,
+            winningTrades: 0,
+            totalPnL: 0,
+            lastReset: Date.now()
+        };
     }
 
-    /**
-     * Calculates position size based on risk parameters
-     * @param {Object} params - Position parameters
-     * @param {string} params.tokenMint - Token mint address
-     * @param {number} params.entryPrice - Entry price
-     * @returns {Promise<number>} Position size in SOL
-     */
-    async calculatePositionSize(params) {
+    async validateTrade({ tokenMint, amount, strategy, metrics }) {
         try {
-            const { tokenMint, entryPrice } = params;
-            const walletBalance = walletManager.getBalance();
-            const maxPositionValue = walletBalance * this.maxPositionSize;
+            const reasons = [];
 
-            // Get price impact
-            const priceImpact = await marketAnalyzer.getPriceImpact(tokenMint, maxPositionValue);
-            if (priceImpact > 0.02) { // 2% max price impact
-                return maxPositionValue * (0.02 / priceImpact);
+            // Check if we have enough balance
+            const hasBalance = await walletManager.hasSufficientBalance(amount);
+            if (!hasBalance) {
+                reasons.push('Insufficient wallet balance');
             }
 
-            return maxPositionValue;
-        } catch (error) {
-            logger.error('Failed to calculate position size:', error.message);
-            return 0;
-        }
-    }
-
-    /**
-     * Checks if a trade is within risk limits
-     * @param {Object} params - Trade parameters
-     * @param {string} params.tokenMint - Token mint address
-     * @param {number} params.amount - Amount in SOL
-     * @returns {Promise<boolean>} True if trade is within limits
-     */
-    async validateTrade(params) {
-        try {
-            const { tokenMint, amount } = params;
-
-            // Check wallet balance
-            if (!walletManager.hasSufficientBalance(amount)) {
-                logger.warning('Insufficient balance for trade');
-                return false;
+            // Check if amount exceeds max position size
+            if (amount > this.maxPositionSize) {
+                reasons.push(`Trade amount exceeds max position size of ${this.maxPositionSize} SOL`);
             }
 
-            // Check position size
-            const maxPosition = await this.calculatePositionSize({
-                tokenMint,
-                entryPrice: 1 // Placeholder, actual price will be set at execution
-            });
-            if (amount > maxPosition) {
-                logger.warning('Position size exceeds maximum');
-                return false;
+            // Check if we're already trading this token
+            if (this.activeTrades.has(tokenMint)) {
+                reasons.push('Already have an active trade for this token');
             }
 
             // Check daily loss limit
-            if (this.dailyPnL < -this.maxDailyLoss * walletManager.getBalance()) {
-                logger.warning('Daily loss limit reached');
-                return false;
+            if (this.dailyStats.totalPnL < -this.maxDailyLoss) {
+                reasons.push(`Daily loss limit of ${this.maxDailyLoss * 100}% reached`);
             }
 
-            // Check open trades
-            if (this.positions.size >= this.maxOpenTrades) {
-                logger.warning('Maximum open trades reached');
-                return false;
+            // Check price impact
+            if (metrics.priceImpact > 2.0) {
+                reasons.push(`Price impact too high: ${metrics.priceImpact}%`);
             }
 
-            return true;
+            return {
+                isValid: reasons.length === 0,
+                reasons
+            };
         } catch (error) {
             logger.error('Failed to validate trade:', error.message);
-            return false;
+            return {
+                isValid: false,
+                reasons: ['Trade validation failed']
+            };
         }
     }
 
-    /**
-     * Updates position information
-     * @param {Object} params - Position parameters
-     * @param {string} params.tokenMint - Token mint address
-     * @param {number} params.entryPrice - Entry price
-     * @param {number} params.amount - Amount in SOL
-     */
-    updatePosition(params) {
-        const { tokenMint, entryPrice, amount } = params;
-        this.positions.set(tokenMint, {
+    updatePosition({ tokenMint, entryPrice, amount }) {
+        this.activeTrades.set(tokenMint, {
             entryPrice,
             amount,
-            entryTime: new Date(),
-            status: 'active'
+            timestamp: Date.now()
         });
     }
 
-    /**
-     * Closes a position and updates PnL
-     * @param {Object} params - Position parameters
-     * @param {string} params.tokenMint - Token mint address
-     * @param {number} params.exitPrice - Exit price
-     */
-    closePosition(params) {
-        const { tokenMint, exitPrice } = params;
-        const position = this.positions.get(tokenMint);
-        if (!position) return;
-
-        const pnl = (exitPrice - position.entryPrice) * position.amount;
-        this.dailyPnL += pnl;
-        this.positions.delete(tokenMint);
+    closePosition({ tokenMint, exitPrice, pnl }) {
+        this.activeTrades.delete(tokenMint);
+        this.updateDailyStats(pnl > 0);
+        this.dailyStats.totalPnL += pnl;
     }
 
-    /**
-     * Checks if stop loss is triggered
-     * @param {Object} params - Position parameters
-     * @param {string} params.tokenMint - Token mint address
-     * @param {number} params.currentPrice - Current price
-     * @returns {boolean} True if stop loss is triggered
-     */
-    isStopLossTriggered(params) {
-        const { tokenMint, currentPrice } = params;
-        const position = this.positions.get(tokenMint);
-        if (!position) return false;
+    updateDailyStats(isWin) {
+        // Reset daily stats if it's a new day
+        const now = Date.now();
+        if (now - this.dailyStats.lastReset > 24 * 60 * 60 * 1000) {
+            this.dailyStats = {
+                totalTrades: 0,
+                winningTrades: 0,
+                totalPnL: 0,
+                lastReset: now
+            };
+        }
 
-        const loss = (position.entryPrice - currentPrice) / position.entryPrice;
-        return loss >= this.maxLossPercent;
+        this.dailyStats.totalTrades++;
+        if (isWin) {
+            this.dailyStats.winningTrades++;
+        }
     }
 
-    /**
-     * Checks if take profit is triggered
-     * @param {Object} params - Position parameters
-     * @param {string} params.tokenMint - Token mint address
-     * @param {number} params.currentPrice - Current price
-     * @returns {boolean} True if take profit is triggered
-     */
-    isTakeProfitTriggered(params) {
-        const { tokenMint, currentPrice } = params;
-        const position = this.positions.get(tokenMint);
-        if (!position) return false;
-
-        const profit = (currentPrice - position.entryPrice) / position.entryPrice;
-        return profit >= this.minProfitPercent;
-    }
-
-    /**
-     * Gets current positions
-     * @returns {Array} List of current positions
-     */
-    getPositions() {
-        return Array.from(this.positions.entries()).map(([tokenMint, position]) => ({
-            tokenMint,
-            ...position
-        }));
-    }
-
-    /**
-     * Gets daily PnL
-     * @returns {number} Daily PnL in SOL
-     */
-    getDailyPnL() {
-        return this.dailyPnL;
-    }
-
-    /**
-     * Resets daily PnL (call at start of new day)
-     */
-    resetDailyPnL() {
-        this.dailyPnL = 0;
+    getMaxPositionSize(tokenMint) {
+        return this.maxPositionSize;
     }
 }
 

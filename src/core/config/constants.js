@@ -10,9 +10,9 @@ module.exports = {
     LOGS_DIR: path.join(__dirname, '../../data/logs'),
     
     // Trading Constants
-    MIN_LIQUIDITY: 1000, // SOL
-    MIN_VOLUME: 500, // SOL
-    MAX_SLIPPAGE: 1.0, // %
+    MIN_LIQUIDITY: 10, // SOL (reduced from 1000 for meme coins)
+    MIN_VOLUME: 50, // SOL (reduced from 500 for meme coins)
+    MAX_SLIPPAGE: 2.0, // % (increased from 1.0 for meme coins)
     DEFAULT_TAKE_PROFIT: 5.0, // %
     DEFAULT_STOP_LOSS: 3.0, // %
     

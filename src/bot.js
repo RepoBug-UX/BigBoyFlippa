@@ -9,6 +9,7 @@ const walletManager = require('./services/wallet/walletManager');
 const jupiterService = require('./services/jupiter/jupiterService');
 const path = require('path');
 const fs = require('fs');
+const bs58 = require('bs58');
 
 class MemeBot {
     constructor() {
@@ -108,7 +109,21 @@ class MemeBot {
         }
 
         try {
-            await walletManager.initialize(privateKey);
+            // Convert private key to correct format if needed
+            let formattedKey;
+            try {
+                // Try parsing as base58
+                formattedKey = bs58.decode(privateKey);
+            } catch (e) {
+                try {
+                    // Try parsing as base64
+                    formattedKey = Buffer.from(privateKey, 'base64');
+                } catch (e2) {
+                    throw new Error('Invalid private key format. Must be base58 or base64 encoded');
+                }
+            }
+
+            await walletManager.initialize(formattedKey);
             const balance = await walletManager.getBalance();
             logger.info(`Wallet initialized. Current balance: ${balance} SOL`);
 
