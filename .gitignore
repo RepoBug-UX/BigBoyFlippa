@@ -4,10 +4,19 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Environment variables
+# Environment variables and sensitive config
 .env
 .env.local
 .env.*.local
+.env.production
+.env.staging
+.env.development
+
+# Sensitive configuration files
+src/core/config/telegram.env
+src/core/config/tokens.json
+src/core/config/strategy.env
+src/core/config/*.env
 
 # IDE and editor files
 .idea/
@@ -28,9 +37,18 @@ npm-debug.log*
 yarn-debug.log*
 yarn-error.log*
 
-# Data files
+# Data files and wallet storage
 src/data/
 !src/data/.gitkeep
+src/data/wallet.json
+src/data/*.json
+src/data/*.csv
+src/data/logs/
+src/data/metrics/
+src/data/trades/
+src/data/repositories/
+src/data/models/
+src/data/strategies/
 
 # Backup files
 backups/
@@ -42,4 +60,23 @@ coverage/
 # Temporary files
 *.tmp
 *.temp
-.cache/ 
+.cache/
+
+# Security and keys
+*.pem
+*.key
+*.crt
+*.p12
+*.pfx
+secrets/
+keys/
+credentials/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db 

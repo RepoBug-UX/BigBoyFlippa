@@ -23,21 +23,30 @@ cd meme-bot-flip
 npm install
 ```
 
-3. Configure `.env` file:
+3. **SECURITY FIRST**: Configure your environment:
 ```bash
-# Edit .env with your values
+# Copy the template file
+cp .env.example .env
+
+# Edit with your actual values (NEVER commit this file!)
 nano .env
 ```
 
-Required environment variables:
-- `WALLET_PRIVATE_KEY`: Your Solana wallet private key
+**⚠️ CRITICAL SECURITY STEPS:**
+- **NEVER** commit your `.env` file to version control
+- Use a **dedicated trading wallet** with limited funds
+- **Backup your private keys** securely offline
+- **Rotate API keys** regularly
+- **Monitor your wallet** for unauthorized transactions
+
+Required environment variables (see `.env.example` for full list):
+- `WALLET_PRIVATE_KEY`: Your Solana wallet private key (base58/base64)
 - `HELIUS_API_KEY`: Your Helius API key
-- `SOLANA_RPC_ENDPOINT`: Your Solana RPC endpoint (can use Helius RPC)
-- `MIN_LIQUIDITY`: Minimum liquidity in SOL (default: 100)
-- `MAX_SLIPPAGE`: Maximum slippage percentage (default: 1.0)
-- `TRADE_AMOUNT_SOL`: Amount of SOL to trade with (default: 0.1)
-- `MAX_HOLD_TIME_MS`: Maximum time to hold a position (default: 150000)
-- `MIN_SAFETY_SCORE`: Minimum safety score for tokens (default: 0.6)
+- `TELEGRAM_BOT_TOKEN`: Telegram bot token (optional)
+- `TELEGRAM_CHAT_ID`: Telegram chat ID (optional)
+- `TRADE_AMOUNT`: Amount of SOL per trade (start small!)
+- `MAX_SLIPPAGE`: Maximum slippage tolerance (%)
+- `MIN_LIQUIDITY`: Minimum liquidity requirement (SOL)
 
 ## Step 2: Initial Testing
 
@@ -147,25 +156,50 @@ cp src/data/trade_log.csv backups/$(date +%Y-%m-%d)/
 cp -r src/data/logs backups/$(date +%Y-%m-%d)/
 ```
 
-## Best Practices
+## Security Best Practices
 
-1. Security:
-- Use dedicated wallet
-- Keep API keys secure
-- Regular backups
-- Monitor system resources
+### 🔒 Wallet Security
+- **Use a dedicated trading wallet** with limited funds only
+- **Never use your main wallet** for automated trading
+- **Backup private keys** securely offline (encrypted USB, paper wallet)
+- **Monitor wallet activity** regularly for unauthorized transactions
+- **Consider hardware wallet** for large amounts
 
-2. Risk Management:
-- Start with small amounts
-- Set conservative limits
-- Regular performance review
-- Document all changes
+### 🔑 API Key Management
+- **Rotate API keys** every 30-90 days
+- **Use environment variables** for all sensitive data
+- **Never hardcode** API keys in source code
+- **Monitor API usage** for unusual activity
+- **Revoke compromised keys** immediately
 
-3. Maintenance:
-- Regular log review
-- Update dependencies
-- Monitor system health
-- Document issues and solutions
+### 📁 File Security
+- **Never commit** `.env` files to version control
+- **Use `.env.example`** templates for sharing configuration
+- **Secure file permissions** (600 for sensitive files)
+- **Regular backups** of configuration and data
+- **Clean up** temporary files containing sensitive data
+
+### 🛡️ Operational Security
+- **Run in isolated environment** (Docker recommended)
+- **Monitor system resources** and logs
+- **Set up alerts** for unusual activity
+- **Regular security updates** for dependencies
+- **Test changes** in development environment first
+
+## Risk Management
+
+1. **Start Small**: Begin with minimal amounts (0.01-0.1 SOL)
+2. **Conservative Limits**: Set strict slippage and liquidity requirements
+3. **Regular Review**: Monitor performance and adjust parameters
+4. **Document Changes**: Keep track of all configuration modifications
+5. **Emergency Procedures**: Know how to stop the bot quickly
+
+## Maintenance
+
+1. **Daily**: Review logs, check wallet balance, monitor API status
+2. **Weekly**: Backup data, review performance, update dependencies
+3. **Monthly**: Rotate API keys, security audit, performance analysis
+4. **Quarterly**: Full system review, dependency updates, security assessment
 
 ## Support
 
